@@ -3,8 +3,8 @@ name: Auto Merge to Development
 on:
   push:
     branches:
-      - dev_CRM1
-      - dev_CRM2
+      - dev_harshal1
+      - dev_harshal2
 
 jobs:
   merge:
