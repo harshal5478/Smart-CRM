@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Smart CRM - Lead Management System
 
 A simple and beginner-friendly Customer Relationship Management (CRM) system for managing leads, built with Flask and MySQL.
@@ -138,3 +139,6 @@ The application will start on `http://localhost:5000`
 ## License
 
 This project is for educational purposes.
+=======
+# Smart-CRM
+>>>>>>> 89d4e2759fbdd6893a3e9bc49172aaf1131a77b2
