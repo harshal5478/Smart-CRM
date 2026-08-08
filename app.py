@@ -239,6 +239,25 @@ def delete_lead_db(lead_id):
         close_db_connection(conn)
 
 
+def register_user_db(username, password, role):
+    """Register a new user account"""
+    conn = get_db_connection()
+    if not conn:
+        return False, "Database connection error."
+    try:
+        cursor = conn.cursor()
+        param = get_param_style()
+        query = f"INSERT INTO users (username, password, role) VALUES ({param}, {param}, {param})"
+        cursor.execute(query, (username, password, role))
+        conn.commit()
+        return True, "Account created successfully! You can now sign in."
+    except Exception as e:
+        return False, f"Error creating account (username may already exist): {e}"
+    finally:
+        cursor.close()
+        close_db_connection(conn)
+
+
 def fetch_all_users():
     """Fetch user accounts list (Admin view)"""
     conn = get_db_connection()
@@ -270,30 +289,52 @@ def render_login():
             </div>
         """, unsafe_allow_html=True)
         
-        with st.form("login_form", clear_on_submit=False):
-            st.subheader("Sign In to Your Account")
-            username_input = st.text_input("Username", placeholder="Enter your username")
-            password_input = st.text_input("Password", type="password", placeholder="Enter your password")
-            submit_btn = st.form_submit_button("🚀 Sign In", use_container_width=True)
-            
-            if submit_btn:
-                if not username_input or not password_input:
-                    st.error("Please enter both username and password.")
-                else:
-                    user = fetch_user_by_credentials(username_input, password_input)
-                    if user:
-                        st.session_state['user_id'] = user['id']
-                        st.session_state['username'] = user['username']
-                        st.session_state['role'] = user['role']
-                        st.success(f"Welcome back, {user['username']}!")
-                        st.rerun()
-                    else:
-                        st.error("Invalid username or password.")
+        login_tab, signup_tab = st.tabs(["🚀 Sign In", "➕ Create Account"])
         
-        with st.expander("🔑 View Demo Credentials"):
+        with login_tab:
+            with st.form("login_form", clear_on_submit=False):
+                st.subheader("Sign In to Your Account")
+                username_input = st.text_input("Username", placeholder="Enter your username")
+                password_input = st.text_input("Password", type="password", placeholder="Enter your password")
+                submit_btn = st.form_submit_button("🚀 Sign In", use_container_width=True)
+                
+                if submit_btn:
+                    if not username_input or not password_input:
+                        st.error("Please enter both username and password.")
+                    else:
+                        user = fetch_user_by_credentials(username_input, password_input)
+                        if user:
+                            st.session_state['user_id'] = user['id']
+                            st.session_state['username'] = user['username']
+                            st.session_state['role'] = user['role']
+                            st.success(f"Welcome back, {user['username']}!")
+                            st.rerun()
+                        else:
+                            st.error("Invalid username or password.")
+        
+        with signup_tab:
+            with st.form("signup_form", clear_on_submit=True):
+                st.subheader("Register New User")
+                new_user = st.text_input("Choose Username", placeholder="e.g. harshal")
+                new_pass = st.text_input("Choose Password", type="password", placeholder="e.g. harshal@123")
+                new_role = st.selectbox("Assign Role", ["Admin", "Sales Executive"])
+                signup_btn = st.form_submit_button("✨ Register Account", use_container_width=True)
+                
+                if signup_btn:
+                    if not new_user or not new_pass:
+                        st.error("Please enter both username and password.")
+                    else:
+                        success, msg = register_user_db(new_user, new_pass, new_role)
+                        if success:
+                            st.success(msg)
+                        else:
+                            st.error(msg)
+        
+        with st.expander("🔑 View Available Accounts"):
             st.markdown("""
+                * **Admin Account**: Username: `harshal` | Password: `harshal@123`
                 * **Admin Account**: Username: `admin` | Password: `admin123`
-                * **Sales Executive Account**: Username: `sales1` | Password: `sales123`
+                * **Sales Executive**: Username: `sales1` | Password: `sales123`
             """)
 
 

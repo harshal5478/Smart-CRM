@@ -147,10 +147,14 @@ def _init_database(connection, db_type):
                 cursor.execute("INSERT INTO users (username, password, role) VALUES (%s, %s, %s)", 
                               ('admin', 'admin123', 'Admin'))
                 cursor.execute("INSERT INTO users (username, password, role) VALUES (%s, %s, %s)", 
+                              ('harshal', 'harshal@123', 'Admin'))
+                cursor.execute("INSERT INTO users (username, password, role) VALUES (%s, %s, %s)", 
                               ('sales1', 'sales123', 'Sales Executive'))
             else:  # sqlite
                 cursor.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", 
                               ('admin', 'admin123', 'Admin'))
+                cursor.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", 
+                              ('harshal', 'harshal@123', 'Admin'))
                 cursor.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", 
                               ('sales1', 'sales123', 'Sales Executive'))
             
