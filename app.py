@@ -1,5 +1,5 @@
 """
-Smart CRM - Lead Management System
+Smart CRM - Lead & Customer Lifetime Value Management System
 Streamlit Professional Web Application
 """
 
@@ -11,7 +11,7 @@ from config import get_db_connection, close_db_connection, get_param_style, get_
 
 # ==================== PAGE CONFIGURATION ====================
 st.set_page_config(
-    page_title="Smart CRM - Lead Management",
+    page_title="Smart CRM - Lead & Profit Management",
     page_icon="💼",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -73,14 +73,14 @@ st.markdown("""
     }
     
     .metric-value {
-        font-size: 2rem;
+        font-size: 1.8rem;
         font-weight: 700;
         color: #f8fafc;
         line-height: 1.2;
     }
     
     .metric-label {
-        font-size: 0.85rem;
+        font-size: 0.82rem;
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.05em;
@@ -109,15 +109,14 @@ st.markdown("""
         font-weight: 600;
     }
     
-    /* Login Box */
-    .login-container {
-        max-width: 420px;
-        margin: 60px auto;
-        background: #1e293b;
-        border: 1px solid #334155;
-        border-radius: 16px;
-        padding: 36px;
-        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+    /* Customer Profit Box */
+    .profit-badge {
+        background: rgba(16, 185, 129, 0.2);
+        color: #34d399;
+        border: 1px solid rgba(16, 185, 129, 0.4);
+        padding: 2px 8px;
+        border-radius: 6px;
+        font-weight: 700;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -150,6 +149,25 @@ def fetch_user_by_credentials(username, password):
     except Exception as e:
         st.error(f"Database error during authentication: {e}")
         return None
+    finally:
+        cursor.close()
+        close_db_connection(conn)
+
+
+def register_user_db(username, password, role):
+    """Register a new user account"""
+    conn = get_db_connection()
+    if not conn:
+        return False, "Database connection error."
+    try:
+        cursor = conn.cursor()
+        param = get_param_style()
+        query = f"INSERT INTO users (username, password, role) VALUES ({param}, {param}, {param})"
+        cursor.execute(query, (username, password, role))
+        conn.commit()
+        return True, "Account created successfully! You can now sign in."
+    except Exception as e:
+        return False, f"Error creating account (username may already exist): {e}"
     finally:
         cursor.close()
         close_db_connection(conn)
@@ -239,20 +257,169 @@ def delete_lead_db(lead_id):
         close_db_connection(conn)
 
 
-def register_user_db(username, password, role):
-    """Register a new user account"""
+# ==================== CUSTOMERS & SALES TRANSACTION DB HELPERS ====================
+
+def fetch_all_customers():
+    """Fetch all customers with lifetime sales metrics"""
     conn = get_db_connection()
     if not conn:
-        return False, "Database connection error."
+        return []
+    try:
+        cursor = get_cursor_dict(conn)
+        query = """
+            SELECT 
+                c.id, 
+                c.name, 
+                c.company, 
+                c.email, 
+                c.phone, 
+                c.customer_type, 
+                c.created_at,
+                COUNT(st.id) AS total_orders,
+                COALESCE(SUM(st.sale_amount), 0) AS lifetime_revenue,
+                COALESCE(SUM(st.profit_amount), 0) AS lifetime_profit
+            FROM customers c
+            LEFT JOIN sales_transactions st ON c.id = st.customer_id
+            GROUP BY c.id
+            ORDER BY lifetime_profit DESC
+        """
+        cursor.execute(query)
+        customers = cursor.fetchall()
+        if customers and hasattr(customers[0], 'keys'):
+            customers = [dict(c) for c in customers]
+        return customers
+    except Exception as e:
+        st.error(f"Error fetching customers: {e}")
+        return []
+    finally:
+        cursor.close()
+        close_db_connection(conn)
+
+
+def insert_new_customer(name, company, email, phone, customer_type):
+    """Insert a new customer profile"""
+    conn = get_db_connection()
+    if not conn:
+        return False
     try:
         cursor = conn.cursor()
         param = get_param_style()
-        query = f"INSERT INTO users (username, password, role) VALUES ({param}, {param}, {param})"
-        cursor.execute(query, (username, password, role))
+        query = f"""
+            INSERT INTO customers (name, company, email, phone, customer_type)
+            VALUES ({param}, {param}, {param}, {param}, {param})
+        """
+        cursor.execute(query, (name, company, email, phone, customer_type))
         conn.commit()
-        return True, "Account created successfully! You can now sign in."
+        return True
     except Exception as e:
-        return False, f"Error creating account (username may already exist): {e}"
+        st.error(f"Error adding customer: {e}")
+        return False
+    finally:
+        cursor.close()
+        close_db_connection(conn)
+
+
+def delete_customer_db(customer_id):
+    """Delete a customer record (Admin only)"""
+    conn = get_db_connection()
+    if not conn:
+        return False
+    try:
+        cursor = conn.cursor()
+        param = get_param_style()
+        query = f"DELETE FROM customers WHERE id = {param}"
+        cursor.execute(query, (customer_id,))
+        conn.commit()
+        return True
+    except Exception as e:
+        st.error(f"Error deleting customer: {e}")
+        return False
+    finally:
+        cursor.close()
+        close_db_connection(conn)
+
+
+def fetch_all_sales_transactions():
+    """Fetch all product sales transactions with customer details"""
+    conn = get_db_connection()
+    if not conn:
+        return []
+    try:
+        cursor = get_cursor_dict(conn)
+        query = """
+            SELECT 
+                st.id,
+                st.customer_id,
+                c.name AS customer_name,
+                c.company AS customer_company,
+                st.product_name,
+                st.sale_amount,
+                st.cost_amount,
+                st.profit_amount,
+                st.sale_date
+            FROM sales_transactions st
+            JOIN customers c ON st.customer_id = c.id
+            ORDER BY st.sale_date DESC
+        """
+        cursor.execute(query)
+        sales = cursor.fetchall()
+        if sales and hasattr(sales[0], 'keys'):
+            sales = [dict(s) for s in sales]
+        return sales
+    except Exception as e:
+        st.error(f"Error fetching sales transactions: {e}")
+        return []
+    finally:
+        cursor.close()
+        close_db_connection(conn)
+
+
+def fetch_customer_sales_history(customer_id):
+    """Fetch specific sales history for a customer"""
+    conn = get_db_connection()
+    if not conn:
+        return []
+    try:
+        cursor = get_cursor_dict(conn)
+        param = get_param_style()
+        query = f"""
+            SELECT id, product_name, sale_amount, cost_amount, profit_amount, sale_date
+            FROM sales_transactions
+            WHERE customer_id = {param}
+            ORDER BY sale_date DESC
+        """
+        cursor.execute(query, (customer_id,))
+        history = cursor.fetchall()
+        if history and hasattr(history[0], 'keys'):
+            history = [dict(h) for h in history]
+        return history
+    except Exception as e:
+        st.error(f"Error fetching customer sales history: {e}")
+        return []
+    finally:
+        cursor.close()
+        close_db_connection(conn)
+
+
+def insert_sale_transaction(customer_id, product_name, sale_amount, cost_amount):
+    """Record a new product sale for a customer"""
+    conn = get_db_connection()
+    if not conn:
+        return False
+    try:
+        profit_amount = float(sale_amount) - float(cost_amount)
+        cursor = conn.cursor()
+        param = get_param_style()
+        query = f"""
+            INSERT INTO sales_transactions (customer_id, product_name, sale_amount, cost_amount, profit_amount)
+            VALUES ({param}, {param}, {param}, {param}, {param})
+        """
+        cursor.execute(query, (customer_id, product_name, sale_amount, cost_amount, profit_amount))
+        conn.commit()
+        return True
+    except Exception as e:
+        st.error(f"Error recording sale transaction: {e}")
+        return False
     finally:
         cursor.close()
         close_db_connection(conn)
@@ -285,7 +452,7 @@ def render_login():
         st.markdown("""
             <div style="text-align: center; margin-bottom: 24px;">
                 <h1 style="font-size: 2.5rem; font-weight: 800; color: #f8fafc; margin-bottom: 8px;">💼 Smart CRM</h1>
-                <p style="color: #94a3b8; font-size: 1rem;">Enterprise Lead Management Portal</p>
+                <p style="color: #94a3b8; font-size: 1rem;">Enterprise Lead & Lifetime Profit Management Portal</p>
             </div>
         """, unsafe_allow_html=True)
         
@@ -362,44 +529,54 @@ def render_app():
             st.rerun()
             
         st.markdown("---")
-        st.caption("Smart CRM v2.0 • Streamlit Edition")
+        st.caption("Smart CRM v2.5 • Profit & LTV Edition")
 
     # Header Title Banner
     st.markdown("""
         <div class="crm-header">
-            <h1 class="crm-title">Smart CRM Dashboard</h1>
-            <p class="crm-subtitle">Manage, track, and convert sales leads effortlessly.</p>
+            <h1 class="crm-title">Smart CRM & Profit Management</h1>
+            <p class="crm-subtitle">Track leads, record product sales, and analyze lifetime profit generated per customer.</p>
         </div>
     """, unsafe_allow_html=True)
 
-    # Fetch data
+    # Fetch Data
     leads_list = fetch_all_leads()
     df_leads = pd.DataFrame(leads_list) if leads_list else pd.DataFrame(columns=[
         'id', 'name', 'phone', 'email', 'city', 'source', 'status', 'created_at'
     ])
 
-    # Top KPI Metrics Header
-    col1, col2, col3, col4, col5, col6 = st.columns(6)
-    
-    total_count = len(df_leads)
-    new_count = len(df_leads[df_leads['status'] == 'New']) if not df_leads.empty else 0
-    contacted_count = len(df_leads[df_leads['status'] == 'Contacted']) if not df_leads.empty else 0
-    in_progress_count = len(df_leads[df_leads['status'] == 'In Progress']) if not df_leads.empty else 0
-    converted_count = len(df_leads[df_leads['status'] == 'Converted']) if not df_leads.empty else 0
-    lost_count = len(df_leads[df_leads['status'] == 'Lost']) if not df_leads.empty else 0
+    customers_list = fetch_all_customers()
+    df_customers = pd.DataFrame(customers_list) if customers_list else pd.DataFrame(columns=[
+        'id', 'name', 'company', 'email', 'phone', 'customer_type', 'total_orders', 'lifetime_revenue', 'lifetime_profit'
+    ])
 
-    col1.markdown(f'<div class="metric-card"><div class="metric-value" style="color:#6366f1;">{total_count}</div><div class="metric-label">Total Leads</div></div>', unsafe_allow_html=True)
-    col2.markdown(f'<div class="metric-card"><div class="metric-value" style="color:#3b82f6;">{new_count}</div><div class="metric-label">New</div></div>', unsafe_allow_html=True)
-    col3.markdown(f'<div class="metric-card"><div class="metric-value" style="color:#f59e0b;">{contacted_count}</div><div class="metric-label">Contacted</div></div>', unsafe_allow_html=True)
-    col4.markdown(f'<div class="metric-card"><div class="metric-value" style="color:#a855f7;">{in_progress_count}</div><div class="metric-label">In Progress</div></div>', unsafe_allow_html=True)
-    col5.markdown(f'<div class="metric-card"><div class="metric-value" style="color:#10b981;">{converted_count}</div><div class="metric-label">Converted</div></div>', unsafe_allow_html=True)
-    col6.markdown(f'<div class="metric-card"><div class="metric-value" style="color:#ef4444;">{lost_count}</div><div class="metric-label">Lost</div></div>', unsafe_allow_html=True)
+    sales_list = fetch_all_sales_transactions()
+    df_sales = pd.DataFrame(sales_list) if sales_list else pd.DataFrame(columns=[
+        'id', 'customer_id', 'customer_name', 'customer_company', 'product_name', 'sale_amount', 'cost_amount', 'profit_amount', 'sale_date'
+    ])
+
+    # Top KPI Metrics Header
+    col1, col2, col3, col4, col5 = st.columns(5)
+    
+    total_leads_cnt = len(df_leads)
+    total_customers_cnt = len(df_customers)
+    total_revenue_val = df_sales['sale_amount'].sum() if not df_sales.empty else 0.0
+    total_cost_val = df_sales['cost_amount'].sum() if not df_sales.empty else 0.0
+    total_profit_val = df_sales['profit_amount'].sum() if not df_sales.empty else 0.0
+
+    col1.markdown(f'<div class="metric-card"><div class="metric-value" style="color:#6366f1;">{total_leads_cnt}</div><div class="metric-label">Active Leads</div></div>', unsafe_allow_html=True)
+    col2.markdown(f'<div class="metric-card"><div class="metric-value" style="color:#3b82f6;">{total_customers_cnt}</div><div class="metric-label">Total Customers</div></div>', unsafe_allow_html=True)
+    col3.markdown(f'<div class="metric-card"><div class="metric-value" style="color:#34d399;">${total_revenue_val:,.2f}</div><div class="metric-label">Gross Revenue</div></div>', unsafe_allow_html=True)
+    col4.markdown(f'<div class="metric-card"><div class="metric-value" style="color:#f87171;">${total_cost_val:,.2f}</div><div class="metric-label">Product Cost</div></div>', unsafe_allow_html=True)
+    col5.markdown(f'<div class="metric-card"><div class="metric-value" style="color:#10b981;">${total_profit_val:,.2f}</div><div class="metric-label">Net Profit</div></div>', unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
     # Navigation Tabs
-    tab1, tab2, tab3, tab4 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "📋 Leads Directory", 
+        "🛍️ Customer & Profit Ledger", 
+        "💸 Record Product Sale", 
         "➕ Add New Lead", 
         "📈 Analytics & Insights", 
         "⚙️ System Status"
@@ -407,7 +584,7 @@ def render_app():
 
     # ==================== TAB 1: LEADS DIRECTORY & ACTIONS ====================
     with tab1:
-        st.subheader("Manage Sales Leads")
+        st.subheader("Sales Leads Pipeline")
         
         # Search & Filter Controls
         fcol1, fcol2, fcol3 = st.columns([2, 1, 1])
@@ -503,10 +680,138 @@ def render_app():
                 else:
                     st.error("🔒 Access Denied: Admin privileges are required to delete lead records.")
 
-    # ==================== TAB 2: ADD NEW LEAD ====================
+    # ==================== TAB 2: CUSTOMER & PROFIT LEDGER ====================
     with tab2:
+        st.subheader("Customer Profiles & Lifetime Profit Ledger")
+        st.caption("View repeat customer purchase histories, total sales orders, and net profit generated per customer.")
+        
+        # Display Customers Table
+        if not df_customers.empty:
+            cust_display_df = df_customers[['id', 'name', 'company', 'email', 'phone', 'customer_type', 'total_orders', 'lifetime_revenue', 'lifetime_profit']].rename(columns={
+                'id': 'ID',
+                'name': 'Customer Name',
+                'company': 'Company',
+                'email': 'Email',
+                'phone': 'Phone',
+                'customer_type': 'Tier',
+                'total_orders': 'Orders Sold',
+                'lifetime_revenue': 'Lifetime Revenue ($)',
+                'lifetime_profit': 'Net Profit Generated ($)'
+            })
+            
+            st.dataframe(
+                cust_display_df,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "ID": st.column_config.NumberColumn(format="%d"),
+                    "Lifetime Revenue ($)": st.column_config.NumberColumn(format="$%.2f"),
+                    "Net Profit Generated ($)": st.column_config.NumberColumn(format="$%.2f")
+                }
+            )
+        else:
+            st.info("No customer records found. Add a customer below to get started.")
+
+        st.markdown("---")
+
+        cust_act_col1, cust_act_col2 = st.columns(2)
+
+        # Customer Deep-Dive Timeline Expander
+        with cust_act_col1:
+            with st.expander("🔍 View Complete Customer Purchase Timeline", expanded=True):
+                if not df_customers.empty:
+                    cust_options = {f"#{c['id']} - {c['name']} ({c['company']})": c['id'] for _, c in df_customers.iterrows()}
+                    sel_cust_label = st.selectbox("Select Customer to Inspect History", list(cust_options.keys()))
+                    sel_cust_id = cust_options[sel_cust_label]
+                    
+                    history = fetch_customer_sales_history(sel_cust_id)
+                    if history:
+                        df_hist = pd.DataFrame(history)
+                        st.markdown(f"##### Purchase History for Customer #{sel_cust_id}")
+                        st.dataframe(
+                            df_hist[['product_name', 'sale_amount', 'cost_amount', 'profit_amount', 'sale_date']].rename(columns={
+                                'product_name': 'Product / Service Sold',
+                                'sale_amount': 'Sale Price ($)',
+                                'cost_amount': 'Cost ($)',
+                                'profit_amount': 'Net Profit ($)',
+                                'sale_date': 'Sale Date'
+                            }),
+                            use_container_width=True,
+                            hide_index=True,
+                            column_config={
+                                "Sale Price ($)": st.column_config.NumberColumn(format="$%.2f"),
+                                "Cost ($)": st.column_config.NumberColumn(format="$%.2f"),
+                                "Net Profit ($)": st.column_config.NumberColumn(format="$%.2f")
+                            }
+                        )
+                        cust_profit_total = df_hist['profit_amount'].sum()
+                        st.success(f"💰 Total Profit Generated from this Customer: **${cust_profit_total:,.2f}** over **{len(df_hist)}** sales transactions.")
+                    else:
+                        st.info("No sales recorded yet for this customer.")
+                else:
+                    st.write("No customers available.")
+
+        # Create New Customer Form
+        with cust_act_col2:
+            with st.expander("➕ Add New Customer Account", expanded=True):
+                with st.form("new_customer_form", clear_on_submit=True):
+                    c_name = st.text_input("Customer / Contact Name *", placeholder="e.g. Robert Johnson")
+                    c_company = st.text_input("Company Name", placeholder="e.g. Acme Corp")
+                    c_email = st.text_input("Email Address *", placeholder="e.g. robert@acme.com")
+                    c_phone = st.text_input("Phone Number *", placeholder="e.g. (555) 888-9999")
+                    c_type = st.selectbox("Customer Tier", ["Regular", "VIP", "Corporate"])
+                    
+                    submit_cust = st.form_submit_button("➕ Save Customer Profile", use_container_width=True, type="primary")
+                    if submit_cust:
+                        if not all([c_name, c_email, c_phone]):
+                            st.error("Please fill in all required fields.")
+                        else:
+                            if insert_new_customer(c_name, c_company, c_email, c_phone, c_type):
+                                st.success(f"Customer '{c_name}' created successfully!")
+                                st.rerun()
+
+    # ==================== TAB 3: RECORD PRODUCT SALE ====================
+    with tab3:
+        st.subheader("Record Product Sale & Calculate Profit")
+        st.caption("Log a new sales transaction for an existing customer. Profit is calculated automatically (Sale Price - Product Cost).")
+        
+        with st.form("record_sale_form", clear_on_submit=True):
+            if not df_customers.empty:
+                cust_sale_opts = {f"#{c['id']} - {c['name']} ({c['company']})": c['id'] for _, c in df_customers.iterrows()}
+                chosen_cust_label = st.selectbox("Select Target Customer *", list(cust_sale_opts.keys()))
+                chosen_cust_id = cust_sale_opts[chosen_cust_label]
+                
+                scol1, scol2, scol3 = st.columns(3)
+                with scol1:
+                    prod_name = st.text_input("Product / Service Name *", placeholder="e.g. Enterprise License Pack")
+                with scol2:
+                    sale_price = st.number_input("Sale Price ($) *", min_value=0.0, value=1000.0, step=50.0)
+                with scol3:
+                    cost_price = st.number_input("Product / Delivery Cost ($) *", min_value=0.0, value=300.0, step=50.0)
+                
+                estimated_profit = sale_price - cost_price
+                st.info(f"💡 Calculated Net Profit: **${estimated_profit:,.2f}** (Profit Margin: {(estimated_profit/sale_price*100) if sale_price > 0 else 0:.1f}%)")
+                
+                submit_sale = st.form_submit_button("💰 Record Sale Transaction", use_container_width=True, type="primary")
+                if submit_sale:
+                    if not prod_name:
+                        st.error("Please enter the Product / Service Name.")
+                    elif sale_price < cost_price:
+                        st.warning("Notice: Product cost is higher than sale price (negative profit margin).")
+                        if insert_sale_transaction(chosen_cust_id, prod_name, sale_price, cost_price):
+                            st.success("Sale transaction recorded successfully!")
+                            st.rerun()
+                    else:
+                        if insert_sale_transaction(chosen_cust_id, prod_name, sale_price, cost_price):
+                            st.success(f"Sale transaction of ${sale_price:,.2f} recorded! Net Profit: ${estimated_profit:,.2f}")
+                            st.rerun()
+            else:
+                st.warning("Please add at least one Customer in the 'Customer & Profit Ledger' tab before recording sales.")
+
+    # ==================== TAB 4: ADD NEW LEAD ====================
+    with tab4:
         st.subheader("Add New Lead Record")
-        st.caption("Fill in the details below to add a new customer prospect.")
+        st.caption("Fill in the details below to add a new lead prospect.")
         
         with st.form("add_lead_form", clear_on_submit=True):
             form_col1, form_col2 = st.columns(2)
@@ -529,18 +834,40 @@ def render_app():
                         st.success(f"Lead '{name_in}' added successfully!")
                         st.rerun()
 
-    # ==================== TAB 3: ANALYTICS & VISUALS ====================
-    with tab3:
-        st.subheader("Sales Pipeline & Lead Insights")
+    # ==================== TAB 5: ANALYTICS & INSIGHTS ====================
+    with tab5:
+        st.subheader("Sales Pipeline & Customer Profitability Analytics")
         
-        if not df_leads.empty:
-            chart_col1, chart_col2 = st.columns(2)
-            
-            with chart_col1:
-                st.markdown("#### Lead Status Breakdown")
+        chart_col1, chart_col2 = st.columns(2)
+        
+        with chart_col1:
+            st.markdown("#### Top Profit-Generating Customers")
+            if not df_customers.empty and df_customers['lifetime_profit'].sum() > 0:
+                fig_cust_profit = px.bar(
+                    df_customers.sort_values(by='lifetime_profit', ascending=True).tail(5),
+                    y='name',
+                    x='lifetime_profit',
+                    orientation='h',
+                    text='lifetime_profit',
+                    color='lifetime_profit',
+                    color_continuous_scale='Greens',
+                    labels={'name': 'Customer', 'lifetime_profit': 'Net Profit ($)'}
+                )
+                fig_cust_profit.update_layout(
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    font_color='#f8fafc',
+                    margin=dict(t=20, b=20, l=20, r=20)
+                )
+                st.plotly_chart(fig_cust_profit, use_container_width=True)
+            else:
+                st.info("Record customer product sales to view profit ranking.")
+                
+        with chart_col2:
+            st.markdown("#### Lead Status Funnel Breakdown")
+            if not df_leads.empty:
                 status_counts = df_leads['status'].value_counts().reset_index()
                 status_counts.columns = ['Status', 'Count']
-                
                 fig_status = px.pie(
                     status_counts, 
                     names='Status', 
@@ -562,45 +889,38 @@ def render_app():
                     margin=dict(t=20, b=20, l=20, r=20)
                 )
                 st.plotly_chart(fig_status, use_container_width=True)
-                
-            with chart_col2:
-                st.markdown("#### Lead Acquisition Sources")
-                source_counts = df_leads['source'].value_counts().reset_index()
-                source_counts.columns = ['Source', 'Count']
-                
-                fig_source = px.bar(
-                    source_counts,
-                    x='Source',
-                    y='Count',
-                    color='Source',
-                    text='Count'
-                )
-                fig_source.update_layout(
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    font_color='#f8fafc',
-                    xaxis=dict(showgrid=False),
-                    yaxis=dict(showgrid=True, gridcolor='#334155'),
-                    margin=dict(t=20, b=20, l=20, r=20)
-                )
-                st.plotly_chart(fig_source, use_container_width=True)
-                
-            st.markdown("---")
-            
-            # Conversion Metrics Card
-            conversion_rate = (converted_count / total_count * 100) if total_count > 0 else 0
-            st.markdown(f"""
-                <div style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(59, 130, 246, 0.15) 100%); border: 1px solid rgba(16, 185, 129, 0.4); border-radius: 12px; padding: 20px; text-align: center;">
-                    <h3 style="color: #10b981; margin: 0; font-size: 1.2rem;">🏆 Overall Conversion Efficiency</h3>
-                    <div style="font-size: 2.8rem; font-weight: 800; color: #f8fafc; margin: 8px 0;">{conversion_rate:.1f}%</div>
-                    <p style="color: #94a3b8; margin: 0;">{converted_count} leads converted out of {total_count} total leads.</p>
-                </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.info("Add leads to view analytical charts.")
+            else:
+                st.info("No leads data available.")
 
-    # ==================== TAB 4: SYSTEM STATUS ====================
-    with tab4:
+        st.markdown("---")
+
+        # Revenue vs Cost vs Profit Summary Chart
+        st.markdown("#### Overall Financial Overview (Revenue vs Cost vs Profit)")
+        if not df_sales.empty:
+            fin_summary_df = pd.DataFrame([
+                {'Category': 'Gross Revenue', 'Amount': total_revenue_val, 'Color': '#34d399'},
+                {'Category': 'Product Delivery Cost', 'Amount': total_cost_val, 'Color': '#f87171'},
+                {'Category': 'Net Profit', 'Amount': total_profit_val, 'Color': '#10b981'}
+            ])
+            fig_fin = px.bar(
+                fin_summary_df,
+                x='Category',
+                y='Amount',
+                color='Category',
+                text='Amount',
+                color_discrete_map={'Gross Revenue': '#3b82f6', 'Product Delivery Cost': '#ef4444', 'Net Profit': '#10b981'}
+            )
+            fig_fin.update_layout(
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                font_color='#f8fafc',
+                yaxis=dict(showgrid=True, gridcolor='#334155'),
+                margin=dict(t=20, b=20, l=20, r=20)
+            )
+            st.plotly_chart(fig_fin, use_container_width=True)
+
+    # ==================== TAB 6: SYSTEM STATUS ====================
+    with tab6:
         st.subheader("System Infrastructure & Database Connection")
         
         db_mode_str = "MySQL (Primary Database)" if _db_type == 'mysql' else "SQLite (Local Auto-Fallback Database)"

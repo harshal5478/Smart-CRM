@@ -180,8 +180,98 @@ def _init_database(connection, db_type):
                     VALUES (?, ?, ?, ?, ?, ?, ?)
                 """, sample_leads)
             
+        # Check and create customers table
+        if db_type == 'mysql':
+            cursor.execute("SHOW TABLES LIKE 'customers'")
+            cust_exists = cursor.fetchone() is not None
+        else:
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='customers'")
+            cust_exists = cursor.fetchone() is not None
+
+        if not cust_exists:
+            if db_type == 'mysql':
+                cursor.execute("""
+                CREATE TABLE customers (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    name VARCHAR(100) NOT NULL,
+                    company VARCHAR(100) NULL,
+                    email VARCHAR(100) NOT NULL,
+                    phone VARCHAR(20) NOT NULL,
+                    customer_type VARCHAR(50) DEFAULT 'Regular',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """)
+                cursor.execute("""
+                CREATE TABLE sales_transactions (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    customer_id INT NOT NULL,
+                    product_name VARCHAR(150) NOT NULL,
+                    sale_amount DECIMAL(10,2) NOT NULL,
+                    cost_amount DECIMAL(10,2) NOT NULL,
+                    profit_amount DECIMAL(10,2) NOT NULL,
+                    sale_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """)
+                # Insert sample customers
+                sample_customers = [
+                    ('Acme Corp (Robert Johnson)', 'Acme Corporation', 'robert@acmecorp.com', '(555) 888-9999', 'VIP'),
+                    ('TechStart Solutions (Emma Watson)', 'TechStart Inc', 'emma@techstart.io', '(555) 777-1111', 'Corporate'),
+                    ('Apex Logistics (David Miller)', 'Apex Logistics', 'david@apexlogistics.com', '(555) 666-2222', 'Regular')
+                ]
+                cursor.executemany("INSERT INTO customers (name, company, email, phone, customer_type) VALUES (%s, %s, %s, %s, %s)", sample_customers)
+                
+                # Insert sample sales transactions
+                sample_sales = [
+                    (1, 'Enterprise CRM License', 5000.00, 1500.00, 3500.00),
+                    (1, 'Annual Maintenance & Support', 1200.00, 300.00, 900.00),
+                    (2, 'Cloud CRM Setup & Migration', 3500.00, 1000.00, 2500.00),
+                    (2, 'Custom Analytics Add-on', 1500.00, 400.00, 1100.00),
+                    (3, 'Starter Sales Package', 1800.00, 600.00, 1200.00)
+                ]
+                cursor.executemany("INSERT INTO sales_transactions (customer_id, product_name, sale_amount, cost_amount, profit_amount) VALUES (%s, %s, %s, %s, %s)", sample_sales)
+            else:  # sqlite
+                cursor.execute("""
+                CREATE TABLE customers (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    company TEXT NULL,
+                    email TEXT NOT NULL,
+                    phone TEXT NOT NULL,
+                    customer_type TEXT DEFAULT 'Regular',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+                """)
+                cursor.execute("""
+                CREATE TABLE sales_transactions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    customer_id INTEGER NOT NULL,
+                    product_name TEXT NOT NULL,
+                    sale_amount REAL NOT NULL,
+                    cost_amount REAL NOT NULL,
+                    profit_amount REAL NOT NULL,
+                    sale_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
+                )
+                """)
+                sample_customers = [
+                    ('Acme Corp (Robert Johnson)', 'Acme Corporation', 'robert@acmecorp.com', '(555) 888-9999', 'VIP'),
+                    ('TechStart Solutions (Emma Watson)', 'TechStart Inc', 'emma@techstart.io', '(555) 777-1111', 'Corporate'),
+                    ('Apex Logistics (David Miller)', 'Apex Logistics', 'david@apexlogistics.com', '(555) 666-2222', 'Regular')
+                ]
+                cursor.executemany("INSERT INTO customers (name, company, email, phone, customer_type) VALUES (?, ?, ?, ?, ?)", sample_customers)
+                
+                sample_sales = [
+                    (1, 'Enterprise CRM License', 5000.00, 1500.00, 3500.00),
+                    (1, 'Annual Maintenance & Support', 1200.00, 300.00, 900.00),
+                    (2, 'Cloud CRM Setup & Migration', 3500.00, 1000.00, 2500.00),
+                    (2, 'Custom Analytics Add-on', 1500.00, 400.00, 1100.00),
+                    (3, 'Starter Sales Package', 1800.00, 600.00, 1200.00)
+                ]
+                cursor.executemany("INSERT INTO sales_transactions (customer_id, product_name, sale_amount, cost_amount, profit_amount) VALUES (?, ?, ?, ?, ?)", sample_sales)
+            
             connection.commit()
-            print("Database initialized successfully with sample data.")
+            print("Customer and sales tables initialized successfully.")
         
     except Exception as e:
         print(f"Error initializing database: {e}")
