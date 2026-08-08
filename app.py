@@ -1,6 +1,6 @@
 """
-Smart CRM - Lead & Customer Lifetime Value Management System
-Streamlit Professional Web Application
+Smart CRM - Indian Lead & Customer Profitability Management System
+Streamlit Professional Web Application (Rupees ₹ Edition)
 """
 
 import streamlit as st
@@ -11,7 +11,7 @@ from config import get_db_connection, close_db_connection, get_param_style, get_
 
 # ==================== PAGE CONFIGURATION ====================
 st.set_page_config(
-    page_title="Smart CRM - Lead & Profit Management",
+    page_title="Smart CRM - Sales & Profit Management (₹)",
     page_icon="💼",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -108,16 +108,6 @@ st.markdown("""
         font-size: 0.8rem;
         font-weight: 600;
     }
-    
-    /* Customer Profit Box */
-    .profit-badge {
-        background: rgba(16, 185, 129, 0.2);
-        color: #34d399;
-        border: 1px solid rgba(16, 185, 129, 0.4);
-        padding: 2px 8px;
-        border-radius: 6px;
-        font-weight: 700;
-    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -172,6 +162,71 @@ def register_user_db(username, password, role):
         cursor.close()
         close_db_connection(conn)
 
+
+# --- PRODUCTS DB HELPERS ---
+
+def fetch_all_products():
+    """Fetch all products in catalog"""
+    conn = get_db_connection()
+    if not conn:
+        return []
+    try:
+        cursor = get_cursor_dict(conn)
+        query = "SELECT * FROM products ORDER BY name ASC"
+        cursor.execute(query)
+        products = cursor.fetchall()
+        if products and hasattr(products[0], 'keys'):
+            products = [dict(p) for p in products]
+        return products
+    except Exception as e:
+        st.error(f"Error fetching products: {e}")
+        return []
+    finally:
+        cursor.close()
+        close_db_connection(conn)
+
+
+def insert_new_product(name, category, selling_price, cost_price):
+    """Add a new product to catalog (Admin)"""
+    conn = get_db_connection()
+    if not conn:
+        return False
+    try:
+        cursor = conn.cursor()
+        param = get_param_style()
+        query = f"INSERT INTO products (name, category, selling_price, cost_price) VALUES ({param}, {param}, {param}, {param})"
+        cursor.execute(query, (name, category, float(selling_price), float(cost_price)))
+        conn.commit()
+        return True
+    except Exception as e:
+        st.error(f"Error adding product: {e}")
+        return False
+    finally:
+        cursor.close()
+        close_db_connection(conn)
+
+
+def delete_product_db(product_id):
+    """Delete a product from catalog (Admin)"""
+    conn = get_db_connection()
+    if not conn:
+        return False
+    try:
+        cursor = conn.cursor()
+        param = get_param_style()
+        query = f"DELETE FROM products WHERE id = {param}"
+        cursor.execute(query, (product_id,))
+        conn.commit()
+        return True
+    except Exception as e:
+        st.error(f"Error deleting product: {e}")
+        return False
+    finally:
+        cursor.close()
+        close_db_connection(conn)
+
+
+# --- LEADS DB HELPERS ---
 
 def fetch_all_leads():
     """Fetch all leads ordered by created_at DESC"""
@@ -257,7 +312,7 @@ def delete_lead_db(lead_id):
         close_db_connection(conn)
 
 
-# ==================== CUSTOMERS & SALES TRANSACTION DB HELPERS ====================
+# --- CUSTOMERS & SALES TRANSACTION DB HELPERS ---
 
 def fetch_all_customers():
     """Fetch all customers with lifetime sales metrics"""
@@ -414,7 +469,7 @@ def insert_sale_transaction(customer_id, product_name, sale_amount, cost_amount)
             INSERT INTO sales_transactions (customer_id, product_name, sale_amount, cost_amount, profit_amount)
             VALUES ({param}, {param}, {param}, {param}, {param})
         """
-        cursor.execute(query, (customer_id, product_name, sale_amount, cost_amount, profit_amount))
+        cursor.execute(query, (customer_id, product_name, float(sale_amount), float(cost_amount), float(profit_amount)))
         conn.commit()
         return True
     except Exception as e:
@@ -451,8 +506,8 @@ def render_login():
     with col2:
         st.markdown("""
             <div style="text-align: center; margin-bottom: 24px;">
-                <h1 style="font-size: 2.5rem; font-weight: 800; color: #f8fafc; margin-bottom: 8px;">💼 Smart CRM</h1>
-                <p style="color: #94a3b8; font-size: 1rem;">Enterprise Lead & Lifetime Profit Management Portal</p>
+                <h1 style="font-size: 2.5rem; font-weight: 800; color: #f8fafc; margin-bottom: 8px;">💼 Smart CRM India</h1>
+                <p style="color: #94a3b8; font-size: 1rem;">Sales, Customer & Profit Management Portal (₹)</p>
             </div>
         """, unsafe_allow_html=True)
         
@@ -510,7 +565,7 @@ def render_login():
 def render_app():
     # Sidebar Profile & Logout
     with st.sidebar:
-        st.markdown("### 💼 Smart CRM System")
+        st.markdown("### 💼 Smart CRM India (₹)")
         st.markdown("---")
         
         role_class = "badge-admin" if st.session_state['role'] == "Admin" else "badge-sales"
@@ -529,17 +584,22 @@ def render_app():
             st.rerun()
             
         st.markdown("---")
-        st.caption("Smart CRM v2.5 • Profit & LTV Edition")
+        st.caption("Smart CRM v3.0 • INR (₹) Edition")
 
     # Header Title Banner
     st.markdown("""
         <div class="crm-header">
-            <h1 class="crm-title">Smart CRM & Profit Management</h1>
-            <p class="crm-subtitle">Track leads, record product sales, and analyze lifetime profit generated per customer.</p>
+            <h1 class="crm-title">Smart CRM - Indian Rupee (₹) Portal</h1>
+            <p class="crm-subtitle">Manage products, place customer orders in ₹, and track net profit.</p>
         </div>
     """, unsafe_allow_html=True)
 
     # Fetch Data
+    products_list = fetch_all_products()
+    df_products = pd.DataFrame(products_list) if products_list else pd.DataFrame(columns=[
+        'id', 'name', 'category', 'selling_price', 'cost_price', 'created_at'
+    ])
+
     leads_list = fetch_all_leads()
     df_leads = pd.DataFrame(leads_list) if leads_list else pd.DataFrame(columns=[
         'id', 'name', 'phone', 'email', 'city', 'source', 'status', 'created_at'
@@ -555,7 +615,7 @@ def render_app():
         'id', 'customer_id', 'customer_name', 'customer_company', 'product_name', 'sale_amount', 'cost_amount', 'profit_amount', 'sale_date'
     ])
 
-    # Top KPI Metrics Header
+    # Top KPI Metrics Header (in ₹)
     col1, col2, col3, col4, col5 = st.columns(5)
     
     total_leads_cnt = len(df_leads)
@@ -566,24 +626,235 @@ def render_app():
 
     col1.markdown(f'<div class="metric-card"><div class="metric-value" style="color:#6366f1;">{total_leads_cnt}</div><div class="metric-label">Active Leads</div></div>', unsafe_allow_html=True)
     col2.markdown(f'<div class="metric-card"><div class="metric-value" style="color:#3b82f6;">{total_customers_cnt}</div><div class="metric-label">Total Customers</div></div>', unsafe_allow_html=True)
-    col3.markdown(f'<div class="metric-card"><div class="metric-value" style="color:#34d399;">${total_revenue_val:,.2f}</div><div class="metric-label">Gross Revenue</div></div>', unsafe_allow_html=True)
-    col4.markdown(f'<div class="metric-card"><div class="metric-value" style="color:#f87171;">${total_cost_val:,.2f}</div><div class="metric-label">Product Cost</div></div>', unsafe_allow_html=True)
-    col5.markdown(f'<div class="metric-card"><div class="metric-value" style="color:#10b981;">${total_profit_val:,.2f}</div><div class="metric-label">Net Profit</div></div>', unsafe_allow_html=True)
+    col3.markdown(f'<div class="metric-card"><div class="metric-value" style="color:#34d399;">₹{total_revenue_val:,.2f}</div><div class="metric-label">Gross Revenue</div></div>', unsafe_allow_html=True)
+    col4.markdown(f'<div class="metric-card"><div class="metric-value" style="color:#f87171;">₹{total_cost_val:,.2f}</div><div class="metric-label">Total Product Cost</div></div>', unsafe_allow_html=True)
+    col5.markdown(f'<div class="metric-card"><div class="metric-value" style="color:#10b981;">₹{total_profit_val:,.2f}</div><div class="metric-label">Net Profit</div></div>', unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # Navigation Tabs
+    # Simplified Navigation Tabs
     tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+        "📦 Products Catalog", 
+        "🛒 Create Order / Record Sale", 
+        "👥 Customers & Sales Ledger", 
         "📋 Leads Directory", 
-        "🛍️ Customer & Profit Ledger", 
-        "💸 Record Product Sale", 
-        "➕ Add New Lead", 
-        "📈 Analytics & Insights", 
+        "📈 Financial Analytics", 
         "⚙️ System Status"
     ])
 
-    # ==================== TAB 1: LEADS DIRECTORY & ACTIONS ====================
+    # ==================== TAB 1: PRODUCTS CATALOG (ADD / REMOVE PRODUCTS) ====================
     with tab1:
+        st.subheader("Product Catalog & Pricing (₹)")
+        st.caption("Admin can add or remove products from the company catalog.")
+        
+        # Display Products Table
+        if not df_products.empty:
+            prod_display = df_products[['id', 'name', 'category', 'selling_price', 'cost_price']].rename(columns={
+                'id': 'ID',
+                'name': 'Product / Service Name',
+                'category': 'Category',
+                'selling_price': 'Selling Price (₹)',
+                'cost_price': 'Product Cost (₹)'
+            })
+            # Add calculated Profit per unit
+            prod_display['Profit per Unit (₹)'] = prod_display['Selling Price (₹)'] - prod_display['Product Cost (₹)']
+            
+            st.dataframe(
+                prod_display,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "ID": st.column_config.NumberColumn(format="%d"),
+                    "Selling Price (₹)": st.column_config.NumberColumn(format="₹%.2f"),
+                    "Product Cost (₹)": st.column_config.NumberColumn(format="₹%.2f"),
+                    "Profit per Unit (₹)": st.column_config.NumberColumn(format="₹%.2f")
+                }
+            )
+        else:
+            st.info("No products found in catalog. Add a product below.")
+
+        st.markdown("---")
+
+        p_col1, p_col2 = st.columns(2)
+
+        # Admin: Add New Product Form
+        with p_col1:
+            with st.expander("➕ Add New Product to Catalog", expanded=True):
+                with st.form("add_product_form", clear_on_submit=True):
+                    p_name = st.text_input("Product / Service Name *", placeholder="e.g. ERP Software Subscription")
+                    p_cat = st.selectbox("Category", ["Software", "Service", "Hardware", "Integration", "Software Addon", "Consulting", "Other"])
+                    p_sell = st.number_input("Selling Price (₹) *", min_value=0.0, value=25000.0, step=1000.0)
+                    p_cost = st.number_input("Product Cost (₹) *", min_value=0.0, value=8000.0, step=500.0)
+                    
+                    unit_profit = p_sell - p_cost
+                    st.info(f"💡 Profit per unit: **₹{unit_profit:,.2f}**")
+                    
+                    submit_prod = st.form_submit_button("➕ Save Product to Catalog", use_container_width=True, type="primary")
+                    if submit_prod:
+                        if not p_name:
+                            st.error("Please enter Product Name.")
+                        else:
+                            if insert_new_product(p_name, p_cat, p_sell, p_cost):
+                                st.success(f"Product '{p_name}' added to catalog successfully!")
+                                st.rerun()
+
+        # Admin: Delete Product Option
+        with p_col2:
+            with st.expander("🗑️ Remove Product from Catalog", expanded=True):
+                if st.session_state['role'] == 'Admin':
+                    if not df_products.empty:
+                        prod_opts = {f"#{p['id']} - {p['name']} (₹{p['selling_price']:,.2f})": p['id'] for _, p in df_products.iterrows()}
+                        del_prod_label = st.selectbox("Select Product to Remove", list(prod_opts.keys()))
+                        del_prod_id = prod_opts[del_prod_label]
+                        
+                        st.warning("⚠️ Warning: Removing a product will remove it from future order selections!")
+                        if st.button("Delete Product", use_container_width=True, type="secondary"):
+                            if delete_product_db(del_prod_id):
+                                st.success("Product removed from catalog!")
+                                st.rerun()
+                    else:
+                        st.write("No products available to delete.")
+                else:
+                    st.error("🔒 Access Denied: Admin privileges are required to remove products.")
+
+    # ==================== TAB 2: CREATE ORDER / RECORD SALE ====================
+    with tab2:
+        st.subheader("Create Customer Order / Record Sale (₹)")
+        st.caption("Select an existing Customer and choose a Product from your Catalog. Pricing and Net Profit in Rupees (₹) are calculated automatically.")
+        
+        with st.form("create_order_form", clear_on_submit=True):
+            if not df_customers.empty and not df_products.empty:
+                # Customer selector
+                cust_order_opts = {f"#{c['id']} - {c['name']} ({c['company']})": c['id'] for _, c in df_customers.iterrows()}
+                sel_cust_label = st.selectbox("1. Select Target Customer *", list(cust_order_opts.keys()))
+                sel_cust_id = cust_order_opts[sel_cust_label]
+                
+                # Product selector from Catalog
+                prod_order_opts = {f"{p['name']} — Selling Price: ₹{p['selling_price']:,.2f} (Cost: ₹{p['cost_price']:,.2f})": p['id'] for _, p in df_products.iterrows()}
+                sel_prod_label = st.selectbox("2. Select Product / Service from Catalog *", list(prod_order_opts.keys()))
+                sel_prod_id = prod_order_opts[sel_prod_label]
+                
+                # Get selected product details
+                chosen_product = df_products[df_products['id'] == sel_prod_id].iloc[0]
+                
+                ocol1, ocol2, ocol3 = st.columns(3)
+                with ocol1:
+                    quantity = st.number_input("Quantity *", min_value=1, value=1, step=1)
+                with ocol2:
+                    override_price = st.number_input("Selling Price per Unit (₹)", min_value=0.0, value=float(chosen_product['selling_price']), step=500.0)
+                with ocol3:
+                    override_cost = st.number_input("Cost Price per Unit (₹)", min_value=0.0, value=float(chosen_product['cost_price']), step=500.0)
+                
+                total_sale_amt = override_price * quantity
+                total_cost_amt = override_cost * quantity
+                total_profit_amt = total_sale_amt - total_cost_amt
+                
+                st.success(f"💰 Order Summary: Total Amount = **₹{total_sale_amt:,.2f}** | Total Cost = **₹{total_cost_amt:,.2f}** | **Net Profit = ₹{total_profit_amt:,.2f}**")
+                
+                submit_order = st.form_submit_button("🛍️ Place & Record Order", use_container_width=True, type="primary")
+                if submit_order:
+                    prod_description = f"{chosen_product['name']} (x{quantity})" if quantity > 1 else chosen_product['name']
+                    if insert_sale_transaction(sel_cust_id, prod_description, total_sale_amt, total_cost_amt):
+                        st.success(f"Order for '{chosen_product['name']}' placed successfully! Net Profit: ₹{total_profit_amt:,.2f}")
+                        st.rerun()
+            else:
+                if df_customers.empty:
+                    st.warning("Please add at least one Customer in the 'Customers & Sales Ledger' tab.")
+                if df_products.empty:
+                    st.warning("Please add at least one Product in the 'Products Catalog' tab.")
+
+    # ==================== TAB 3: CUSTOMERS & SALES LEDGER ====================
+    with tab3:
+        st.subheader("Customer Directory & Lifetime Sales Ledger (₹)")
+        st.caption("View repeat customer purchase histories, total sales orders, and net profit generated per customer in ₹.")
+        
+        # Display Customers Table
+        if not df_customers.empty:
+            cust_display_df = df_customers[['id', 'name', 'company', 'email', 'phone', 'customer_type', 'total_orders', 'lifetime_revenue', 'lifetime_profit']].rename(columns={
+                'id': 'ID',
+                'name': 'Customer Name',
+                'company': 'Company',
+                'email': 'Email',
+                'phone': 'Phone',
+                'customer_type': 'Tier',
+                'total_orders': 'Orders Placed',
+                'lifetime_revenue': 'Lifetime Revenue (₹)',
+                'lifetime_profit': 'Net Profit Generated (₹)'
+            })
+            
+            st.dataframe(
+                cust_display_df,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "ID": st.column_config.NumberColumn(format="%d"),
+                    "Lifetime Revenue (₹)": st.column_config.NumberColumn(format="₹%.2f"),
+                    "Net Profit Generated (₹)": st.column_config.NumberColumn(format="₹%.2f")
+                }
+            )
+        else:
+            st.info("No customer records found. Add a customer below.")
+
+        st.markdown("---")
+
+        cust_act_col1, cust_act_col2 = st.columns(2)
+
+        # Customer Deep-Dive Timeline Expander
+        with cust_act_col1:
+            with st.expander("🔍 View Complete Customer Purchase Timeline", expanded=True):
+                if not df_customers.empty:
+                    cust_options = {f"#{c['id']} - {c['name']} ({c['company']})": c['id'] for _, c in df_customers.iterrows()}
+                    sel_cust_label = st.selectbox("Select Customer to Inspect History", list(cust_options.keys()))
+                    sel_cust_id = cust_options[sel_cust_label]
+                    
+                    history = fetch_customer_sales_history(sel_cust_id)
+                    if history:
+                        df_hist = pd.DataFrame(history)
+                        st.markdown(f"##### Purchase History for Customer #{sel_cust_id}")
+                        st.dataframe(
+                            df_hist[['product_name', 'sale_amount', 'cost_amount', 'profit_amount', 'sale_date']].rename(columns={
+                                'product_name': 'Product / Service Sold',
+                                'sale_amount': 'Sale Price (₹)',
+                                'cost_amount': 'Cost (₹)',
+                                'profit_amount': 'Net Profit (₹)',
+                                'sale_date': 'Sale Date'
+                            }),
+                            use_container_width=True,
+                            hide_index=True,
+                            column_config={
+                                "Sale Price (₹)": st.column_config.NumberColumn(format="₹%.2f"),
+                                "Cost (₹)": st.column_config.NumberColumn(format="₹%.2f"),
+                                "Net Profit (₹)": st.column_config.NumberColumn(format="₹%.2f")
+                            }
+                        )
+                        cust_profit_total = df_hist['profit_amount'].sum()
+                        st.success(f"💰 Total Net Profit from this Customer: **₹{cust_profit_total:,.2f}** over **{len(df_hist)}** orders.")
+                    else:
+                        st.info("No sales recorded yet for this customer.")
+                else:
+                    st.write("No customers available.")
+
+        # Create New Customer Form
+        with cust_act_col2:
+            with st.expander("➕ Add New Customer Account", expanded=True):
+                with st.form("new_customer_form", clear_on_submit=True):
+                    c_name = st.text_input("Customer / Contact Name *", placeholder="e.g. Rajesh Sharma")
+                    c_company = st.text_input("Company Name", placeholder="e.g. Reliance Retail")
+                    c_email = st.text_input("Email Address *", placeholder="e.g. rajesh.s@company.in")
+                    c_phone = st.text_input("Phone Number *", placeholder="e.g. +91 98200 12345")
+                    c_type = st.selectbox("Customer Tier", ["Regular", "VIP", "Corporate"])
+                    
+                    submit_cust = st.form_submit_button("➕ Save Customer Profile", use_container_width=True, type="primary")
+                    if submit_cust:
+                        if not all([c_name, c_email, c_phone]):
+                            st.error("Please fill in all required fields.")
+                        else:
+                            if insert_new_customer(c_name, c_company, c_email, c_phone, c_type):
+                                st.success(f"Customer '{c_name}' created successfully!")
+                                st.rerun()
+
+    # ==================== TAB 4: LEADS DIRECTORY & ACTIONS ====================
+    with tab4:
         st.subheader("Sales Leads Pipeline")
         
         # Search & Filter Controls
@@ -639,10 +910,10 @@ def render_app():
 
         st.markdown("---")
 
-        # Interactive Lead Action Drawer
-        act_col1, act_col2 = st.columns(2)
+        # Add Lead & Update Status
+        l_col1, l_col2 = st.columns(2)
         
-        with act_col1:
+        with l_col1:
             with st.expander("⚡ Update Lead Status", expanded=False):
                 if not df_leads.empty:
                     lead_choices = {f"#{row['id']} - {row['name']} ({row['status']})": row['id'] for _, row in df_leads.iterrows()}
@@ -662,186 +933,33 @@ def render_app():
                 else:
                     st.write("No leads available.")
 
-        with act_col2:
-            with st.expander("🗑️ Delete Lead Record", expanded=False):
-                if st.session_state['role'] == 'Admin':
-                    if not df_leads.empty:
-                        delete_choices = {f"#{row['id']} - {row['name']} ({row['status']})": row['id'] for _, row in df_leads.iterrows()}
-                        del_lead_label = st.selectbox("Select Lead to Delete", list(delete_choices.keys()), key="del_lead_select")
-                        del_lead_id = delete_choices[del_lead_label]
-                        
-                        st.warning("⚠️ Warning: Deleting a lead is permanent!")
-                        if st.button("Delete Lead", use_container_width=True, type="secondary"):
-                            if delete_lead_db(del_lead_id):
-                                st.success(f"Lead #{del_lead_id} deleted successfully!")
-                                st.rerun()
-                    else:
-                        st.write("No leads available.")
-                else:
-                    st.error("🔒 Access Denied: Admin privileges are required to delete lead records.")
-
-    # ==================== TAB 2: CUSTOMER & PROFIT LEDGER ====================
-    with tab2:
-        st.subheader("Customer Profiles & Lifetime Profit Ledger")
-        st.caption("View repeat customer purchase histories, total sales orders, and net profit generated per customer.")
-        
-        # Display Customers Table
-        if not df_customers.empty:
-            cust_display_df = df_customers[['id', 'name', 'company', 'email', 'phone', 'customer_type', 'total_orders', 'lifetime_revenue', 'lifetime_profit']].rename(columns={
-                'id': 'ID',
-                'name': 'Customer Name',
-                'company': 'Company',
-                'email': 'Email',
-                'phone': 'Phone',
-                'customer_type': 'Tier',
-                'total_orders': 'Orders Sold',
-                'lifetime_revenue': 'Lifetime Revenue ($)',
-                'lifetime_profit': 'Net Profit Generated ($)'
-            })
-            
-            st.dataframe(
-                cust_display_df,
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    "ID": st.column_config.NumberColumn(format="%d"),
-                    "Lifetime Revenue ($)": st.column_config.NumberColumn(format="$%.2f"),
-                    "Net Profit Generated ($)": st.column_config.NumberColumn(format="$%.2f")
-                }
-            )
-        else:
-            st.info("No customer records found. Add a customer below to get started.")
-
-        st.markdown("---")
-
-        cust_act_col1, cust_act_col2 = st.columns(2)
-
-        # Customer Deep-Dive Timeline Expander
-        with cust_act_col1:
-            with st.expander("🔍 View Complete Customer Purchase Timeline", expanded=True):
-                if not df_customers.empty:
-                    cust_options = {f"#{c['id']} - {c['name']} ({c['company']})": c['id'] for _, c in df_customers.iterrows()}
-                    sel_cust_label = st.selectbox("Select Customer to Inspect History", list(cust_options.keys()))
-                    sel_cust_id = cust_options[sel_cust_label]
+        with l_col2:
+            with st.expander("➕ Add New Lead Record", expanded=False):
+                with st.form("add_lead_form", clear_on_submit=True):
+                    name_in = st.text_input("Full Name *", placeholder="e.g. Vikram Malhotra")
+                    phone_in = st.text_input("Phone Number *", placeholder="e.g. +91 98111 22334")
+                    email_in = st.text_input("Email Address *", placeholder="e.g. vikram@m.com")
+                    city_in = st.text_input("City *", placeholder="e.g. Mumbai")
+                    source_in = st.selectbox("Lead Source *", ["Website", "Social Media", "Referral", "Cold Call", "Event", "Partner", "Other"])
+                    status_in = st.selectbox("Initial Status", ["New", "Contacted", "In Progress", "Converted", "Lost"])
                     
-                    history = fetch_customer_sales_history(sel_cust_id)
-                    if history:
-                        df_hist = pd.DataFrame(history)
-                        st.markdown(f"##### Purchase History for Customer #{sel_cust_id}")
-                        st.dataframe(
-                            df_hist[['product_name', 'sale_amount', 'cost_amount', 'profit_amount', 'sale_date']].rename(columns={
-                                'product_name': 'Product / Service Sold',
-                                'sale_amount': 'Sale Price ($)',
-                                'cost_amount': 'Cost ($)',
-                                'profit_amount': 'Net Profit ($)',
-                                'sale_date': 'Sale Date'
-                            }),
-                            use_container_width=True,
-                            hide_index=True,
-                            column_config={
-                                "Sale Price ($)": st.column_config.NumberColumn(format="$%.2f"),
-                                "Cost ($)": st.column_config.NumberColumn(format="$%.2f"),
-                                "Net Profit ($)": st.column_config.NumberColumn(format="$%.2f")
-                            }
-                        )
-                        cust_profit_total = df_hist['profit_amount'].sum()
-                        st.success(f"💰 Total Profit Generated from this Customer: **${cust_profit_total:,.2f}** over **{len(df_hist)}** sales transactions.")
-                    else:
-                        st.info("No sales recorded yet for this customer.")
-                else:
-                    st.write("No customers available.")
-
-        # Create New Customer Form
-        with cust_act_col2:
-            with st.expander("➕ Add New Customer Account", expanded=True):
-                with st.form("new_customer_form", clear_on_submit=True):
-                    c_name = st.text_input("Customer / Contact Name *", placeholder="e.g. Robert Johnson")
-                    c_company = st.text_input("Company Name", placeholder="e.g. Acme Corp")
-                    c_email = st.text_input("Email Address *", placeholder="e.g. robert@acme.com")
-                    c_phone = st.text_input("Phone Number *", placeholder="e.g. (555) 888-9999")
-                    c_type = st.selectbox("Customer Tier", ["Regular", "VIP", "Corporate"])
-                    
-                    submit_cust = st.form_submit_button("➕ Save Customer Profile", use_container_width=True, type="primary")
-                    if submit_cust:
-                        if not all([c_name, c_email, c_phone]):
+                    submit_lead = st.form_submit_button("➕ Save Lead Record", use_container_width=True, type="primary")
+                    if submit_lead:
+                        if not all([name_in, phone_in, email_in, city_in]):
                             st.error("Please fill in all required fields.")
                         else:
-                            if insert_new_customer(c_name, c_company, c_email, c_phone, c_type):
-                                st.success(f"Customer '{c_name}' created successfully!")
+                            if insert_new_lead(name_in, phone_in, email_in, city_in, source_in, status_in):
+                                st.success(f"Lead '{name_in}' added successfully!")
                                 st.rerun()
 
-    # ==================== TAB 3: RECORD PRODUCT SALE ====================
-    with tab3:
-        st.subheader("Record Product Sale & Calculate Profit")
-        st.caption("Log a new sales transaction for an existing customer. Profit is calculated automatically (Sale Price - Product Cost).")
-        
-        with st.form("record_sale_form", clear_on_submit=True):
-            if not df_customers.empty:
-                cust_sale_opts = {f"#{c['id']} - {c['name']} ({c['company']})": c['id'] for _, c in df_customers.iterrows()}
-                chosen_cust_label = st.selectbox("Select Target Customer *", list(cust_sale_opts.keys()))
-                chosen_cust_id = cust_sale_opts[chosen_cust_label]
-                
-                scol1, scol2, scol3 = st.columns(3)
-                with scol1:
-                    prod_name = st.text_input("Product / Service Name *", placeholder="e.g. Enterprise License Pack")
-                with scol2:
-                    sale_price = st.number_input("Sale Price ($) *", min_value=0.0, value=1000.0, step=50.0)
-                with scol3:
-                    cost_price = st.number_input("Product / Delivery Cost ($) *", min_value=0.0, value=300.0, step=50.0)
-                
-                estimated_profit = sale_price - cost_price
-                st.info(f"💡 Calculated Net Profit: **${estimated_profit:,.2f}** (Profit Margin: {(estimated_profit/sale_price*100) if sale_price > 0 else 0:.1f}%)")
-                
-                submit_sale = st.form_submit_button("💰 Record Sale Transaction", use_container_width=True, type="primary")
-                if submit_sale:
-                    if not prod_name:
-                        st.error("Please enter the Product / Service Name.")
-                    elif sale_price < cost_price:
-                        st.warning("Notice: Product cost is higher than sale price (negative profit margin).")
-                        if insert_sale_transaction(chosen_cust_id, prod_name, sale_price, cost_price):
-                            st.success("Sale transaction recorded successfully!")
-                            st.rerun()
-                    else:
-                        if insert_sale_transaction(chosen_cust_id, prod_name, sale_price, cost_price):
-                            st.success(f"Sale transaction of ${sale_price:,.2f} recorded! Net Profit: ${estimated_profit:,.2f}")
-                            st.rerun()
-            else:
-                st.warning("Please add at least one Customer in the 'Customer & Profit Ledger' tab before recording sales.")
-
-    # ==================== TAB 4: ADD NEW LEAD ====================
-    with tab4:
-        st.subheader("Add New Lead Record")
-        st.caption("Fill in the details below to add a new lead prospect.")
-        
-        with st.form("add_lead_form", clear_on_submit=True):
-            form_col1, form_col2 = st.columns(2)
-            with form_col1:
-                name_in = st.text_input("Full Name *", placeholder="e.g. Alex Morgan")
-                phone_in = st.text_input("Phone Number *", placeholder="e.g. (555) 019-2834")
-                email_in = st.text_input("Email Address *", placeholder="e.g. alex.m@company.com")
-            with form_col2:
-                city_in = st.text_input("City *", placeholder="e.g. San Francisco")
-                source_in = st.selectbox("Lead Source *", ["Website", "Social Media", "Referral", "Cold Call", "Event", "Partner", "Other"])
-                status_in = st.selectbox("Initial Status", ["New", "Contacted", "In Progress", "Converted", "Lost"])
-            
-            submit_lead = st.form_submit_button("➕ Save Lead Record", use_container_width=True, type="primary")
-            
-            if submit_lead:
-                if not all([name_in, phone_in, email_in, city_in]):
-                    st.error("Please fill in all required fields marked with *.")
-                else:
-                    if insert_new_lead(name_in, phone_in, email_in, city_in, source_in, status_in):
-                        st.success(f"Lead '{name_in}' added successfully!")
-                        st.rerun()
-
-    # ==================== TAB 5: ANALYTICS & INSIGHTS ====================
+    # ==================== TAB 5: FINANCIAL ANALYTICS (IN ₹) ====================
     with tab5:
-        st.subheader("Sales Pipeline & Customer Profitability Analytics")
+        st.subheader("Financial Overview & Profitability Analytics (₹)")
         
         chart_col1, chart_col2 = st.columns(2)
         
         with chart_col1:
-            st.markdown("#### Top Profit-Generating Customers")
+            st.markdown("#### Top Profit-Generating Customers (₹)")
             if not df_customers.empty and df_customers['lifetime_profit'].sum() > 0:
                 fig_cust_profit = px.bar(
                     df_customers.sort_values(by='lifetime_profit', ascending=True).tail(5),
@@ -851,7 +969,7 @@ def render_app():
                     text='lifetime_profit',
                     color='lifetime_profit',
                     color_continuous_scale='Greens',
-                    labels={'name': 'Customer', 'lifetime_profit': 'Net Profit ($)'}
+                    labels={'name': 'Customer', 'lifetime_profit': 'Net Profit (₹)'}
                 )
                 fig_cust_profit.update_layout(
                     paper_bgcolor='rgba(0,0,0,0)',
@@ -861,63 +979,32 @@ def render_app():
                 )
                 st.plotly_chart(fig_cust_profit, use_container_width=True)
             else:
-                st.info("Record customer product sales to view profit ranking.")
+                st.info("Record orders to view customer profit ranking.")
                 
         with chart_col2:
-            st.markdown("#### Lead Status Funnel Breakdown")
-            if not df_leads.empty:
-                status_counts = df_leads['status'].value_counts().reset_index()
-                status_counts.columns = ['Status', 'Count']
-                fig_status = px.pie(
-                    status_counts, 
-                    names='Status', 
-                    values='Count',
-                    hole=0.4,
-                    color='Status',
-                    color_discrete_map={
-                        'New': '#3b82f6',
-                        'Contacted': '#f59e0b',
-                        'In Progress': '#a855f7',
-                        'Converted': '#10b981',
-                        'Lost': '#ef4444'
-                    }
+            st.markdown("#### Financial Breakdown (Revenue vs Cost vs Profit)")
+            if not df_sales.empty:
+                fin_summary_df = pd.DataFrame([
+                    {'Category': 'Gross Revenue', 'Amount': total_revenue_val},
+                    {'Category': 'Product Cost', 'Amount': total_cost_val},
+                    {'Category': 'Net Profit', 'Amount': total_profit_val}
+                ])
+                fig_fin = px.bar(
+                    fin_summary_df,
+                    x='Category',
+                    y='Amount',
+                    color='Category',
+                    text='Amount',
+                    color_discrete_map={'Gross Revenue': '#3b82f6', 'Product Cost': '#ef4444', 'Net Profit': '#10b981'}
                 )
-                fig_status.update_layout(
+                fig_fin.update_layout(
                     paper_bgcolor='rgba(0,0,0,0)',
                     plot_bgcolor='rgba(0,0,0,0)',
                     font_color='#f8fafc',
+                    yaxis=dict(showgrid=True, gridcolor='#334155'),
                     margin=dict(t=20, b=20, l=20, r=20)
                 )
-                st.plotly_chart(fig_status, use_container_width=True)
-            else:
-                st.info("No leads data available.")
-
-        st.markdown("---")
-
-        # Revenue vs Cost vs Profit Summary Chart
-        st.markdown("#### Overall Financial Overview (Revenue vs Cost vs Profit)")
-        if not df_sales.empty:
-            fin_summary_df = pd.DataFrame([
-                {'Category': 'Gross Revenue', 'Amount': total_revenue_val, 'Color': '#34d399'},
-                {'Category': 'Product Delivery Cost', 'Amount': total_cost_val, 'Color': '#f87171'},
-                {'Category': 'Net Profit', 'Amount': total_profit_val, 'Color': '#10b981'}
-            ])
-            fig_fin = px.bar(
-                fin_summary_df,
-                x='Category',
-                y='Amount',
-                color='Category',
-                text='Amount',
-                color_discrete_map={'Gross Revenue': '#3b82f6', 'Product Delivery Cost': '#ef4444', 'Net Profit': '#10b981'}
-            )
-            fig_fin.update_layout(
-                paper_bgcolor='rgba(0,0,0,0)',
-                plot_bgcolor='rgba(0,0,0,0)',
-                font_color='#f8fafc',
-                yaxis=dict(showgrid=True, gridcolor='#334155'),
-                margin=dict(t=20, b=20, l=20, r=20)
-            )
-            st.plotly_chart(fig_fin, use_container_width=True)
+                st.plotly_chart(fig_fin, use_container_width=True)
 
     # ==================== TAB 6: SYSTEM STATUS ====================
     with tab6:

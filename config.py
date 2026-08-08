@@ -180,6 +180,54 @@ def _init_database(connection, db_type):
                     VALUES (?, ?, ?, ?, ?, ?, ?)
                 """, sample_leads)
             
+        # Check and create products table
+        if db_type == 'mysql':
+            cursor.execute("SHOW TABLES LIKE 'products'")
+            prod_exists = cursor.fetchone() is not None
+        else:
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='products'")
+            prod_exists = cursor.fetchone() is not None
+
+        if not prod_exists:
+            if db_type == 'mysql':
+                cursor.execute("""
+                CREATE TABLE products (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    name VARCHAR(150) NOT NULL,
+                    category VARCHAR(50) DEFAULT 'Software',
+                    selling_price DECIMAL(10,2) NOT NULL,
+                    cost_price DECIMAL(10,2) NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """)
+                sample_products = [
+                    ('CRM Enterprise Subscription', 'Software', 45000.00, 15000.00),
+                    ('Annual Maintenance & Support', 'Service', 12000.00, 3000.00),
+                    ('Cloud Setup & Data Migration', 'Service', 25000.00, 8000.00),
+                    ('Custom Analytics & Reports Module', 'Software Addon', 15000.00, 4000.00),
+                    ('WhatsApp API Integration Pack', 'Integration', 18000.00, 5000.00)
+                ]
+                cursor.executemany("INSERT INTO products (name, category, selling_price, cost_price) VALUES (%s, %s, %s, %s)", sample_products)
+            else:  # sqlite
+                cursor.execute("""
+                CREATE TABLE products (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    category TEXT DEFAULT 'Software',
+                    selling_price REAL NOT NULL,
+                    cost_price REAL NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+                """)
+                sample_products = [
+                    ('CRM Enterprise Subscription', 'Software', 45000.00, 15000.00),
+                    ('Annual Maintenance & Support', 'Service', 12000.00, 3000.00),
+                    ('Cloud Setup & Data Migration', 'Service', 25000.00, 8000.00),
+                    ('Custom Analytics & Reports Module', 'Software Addon', 15000.00, 4000.00),
+                    ('WhatsApp API Integration Pack', 'Integration', 18000.00, 5000.00)
+                ]
+                cursor.executemany("INSERT INTO products (name, category, selling_price, cost_price) VALUES (?, ?, ?, ?)", sample_products)
+
         # Check and create customers table
         if db_type == 'mysql':
             cursor.execute("SHOW TABLES LIKE 'customers'")
@@ -215,19 +263,19 @@ def _init_database(connection, db_type):
                 """)
                 # Insert sample customers
                 sample_customers = [
-                    ('Acme Corp (Robert Johnson)', 'Acme Corporation', 'robert@acmecorp.com', '(555) 888-9999', 'VIP'),
-                    ('TechStart Solutions (Emma Watson)', 'TechStart Inc', 'emma@techstart.io', '(555) 777-1111', 'Corporate'),
-                    ('Apex Logistics (David Miller)', 'Apex Logistics', 'david@apexlogistics.com', '(555) 666-2222', 'Regular')
+                    ('Reliance Retail (Rajesh Sharma)', 'Reliance Retail', 'rajesh.sharma@reliance.com', '+91 98200 12345', 'VIP'),
+                    ('Tata Consultancy (Priya Nair)', 'TCS Ltd', 'priya.nair@tcs.com', '+91 98450 67890', 'Corporate'),
+                    ('Apex Logistics India (Amit Patel)', 'Apex Logistics', 'amit.patel@apex.co.in', '+91 97110 54321', 'Regular')
                 ]
                 cursor.executemany("INSERT INTO customers (name, company, email, phone, customer_type) VALUES (%s, %s, %s, %s, %s)", sample_customers)
                 
-                # Insert sample sales transactions
+                # Insert sample sales transactions (in INR ₹)
                 sample_sales = [
-                    (1, 'Enterprise CRM License', 5000.00, 1500.00, 3500.00),
-                    (1, 'Annual Maintenance & Support', 1200.00, 300.00, 900.00),
-                    (2, 'Cloud CRM Setup & Migration', 3500.00, 1000.00, 2500.00),
-                    (2, 'Custom Analytics Add-on', 1500.00, 400.00, 1100.00),
-                    (3, 'Starter Sales Package', 1800.00, 600.00, 1200.00)
+                    (1, 'CRM Enterprise Subscription', 45000.00, 15000.00, 30000.00),
+                    (1, 'Annual Maintenance & Support', 12000.00, 3000.00, 9000.00),
+                    (2, 'Cloud Setup & Data Migration', 25000.00, 8000.00, 17000.00),
+                    (2, 'WhatsApp API Integration Pack', 18000.00, 5000.00, 13000.00),
+                    (3, 'Custom Analytics & Reports Module', 15000.00, 4000.00, 11000.00)
                 ]
                 cursor.executemany("INSERT INTO sales_transactions (customer_id, product_name, sale_amount, cost_amount, profit_amount) VALUES (%s, %s, %s, %s, %s)", sample_sales)
             else:  # sqlite
@@ -255,18 +303,18 @@ def _init_database(connection, db_type):
                 )
                 """)
                 sample_customers = [
-                    ('Acme Corp (Robert Johnson)', 'Acme Corporation', 'robert@acmecorp.com', '(555) 888-9999', 'VIP'),
-                    ('TechStart Solutions (Emma Watson)', 'TechStart Inc', 'emma@techstart.io', '(555) 777-1111', 'Corporate'),
-                    ('Apex Logistics (David Miller)', 'Apex Logistics', 'david@apexlogistics.com', '(555) 666-2222', 'Regular')
+                    ('Reliance Retail (Rajesh Sharma)', 'Reliance Retail', 'rajesh.sharma@reliance.com', '+91 98200 12345', 'VIP'),
+                    ('Tata Consultancy (Priya Nair)', 'TCS Ltd', 'priya.nair@tcs.com', '+91 98450 67890', 'Corporate'),
+                    ('Apex Logistics India (Amit Patel)', 'Apex Logistics', 'amit.patel@apex.co.in', '+91 97110 54321', 'Regular')
                 ]
                 cursor.executemany("INSERT INTO customers (name, company, email, phone, customer_type) VALUES (?, ?, ?, ?, ?)", sample_customers)
                 
                 sample_sales = [
-                    (1, 'Enterprise CRM License', 5000.00, 1500.00, 3500.00),
-                    (1, 'Annual Maintenance & Support', 1200.00, 300.00, 900.00),
-                    (2, 'Cloud CRM Setup & Migration', 3500.00, 1000.00, 2500.00),
-                    (2, 'Custom Analytics Add-on', 1500.00, 400.00, 1100.00),
-                    (3, 'Starter Sales Package', 1800.00, 600.00, 1200.00)
+                    (1, 'CRM Enterprise Subscription', 45000.00, 15000.00, 30000.00),
+                    (1, 'Annual Maintenance & Support', 12000.00, 3000.00, 9000.00),
+                    (2, 'Cloud Setup & Data Migration', 25000.00, 8000.00, 17000.00),
+                    (2, 'WhatsApp API Integration Pack', 18000.00, 5000.00, 13000.00),
+                    (3, 'Custom Analytics & Reports Module', 15000.00, 4000.00, 11000.00)
                 ]
                 cursor.executemany("INSERT INTO sales_transactions (customer_id, product_name, sale_amount, cost_amount, profit_amount) VALUES (?, ?, ?, ?, ?)", sample_sales)
             
